@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -13,6 +14,8 @@ from takeout_reorganizer.dates import (
     format_organizacion_stem,
     has_organizacion_name,
     is_media_file,
+    is_takeout_media_sidecar,
+    media_path_for_takeout_sidecar,
     resolve_capture_datetime,
     sanitize_description,
     sanitize_stem_for_rename,
@@ -27,6 +30,8 @@ class RunStats:
     renamed: int = 0
     already_ok: int = 0
     skipped_no_date: int = 0
+    sidecars_removed: int = 0
+    empty_dirs_removed: int = 0
     errors: int = 0
     skipped_paths: list[Path] = field(default_factory=list)
     error_messages: list[str] = field(default_factory=list)
@@ -49,6 +54,27 @@ def unique_destination(directory: Path, stem: str, suffix: str) -> Path:
         n += 1
 
 
+def remove_takeout_sidecars(
+    media_path: Path,
+    dry_run: bool,
+    stats: RunStats,
+) -> None:
+    for json_path in takeout_json_paths(media_path):
+        if not json_path.is_file():
+            continue
+        if dry_run:
+            logger.info("  sidecar: borrar %s", json_path)
+        else:
+            try:
+                json_path.unlink()
+            except OSError as e:
+                stats.errors += 1
+                stats.error_messages.append(f"{json_path}: {e}")
+                logger.error("Error al borrar sidecar %s: %s", json_path, e)
+                continue
+        stats.sidecars_removed += 1
+
+
 def rename_sidecars_after_media_rename(
     old_media_name: str,
     old_media_parent: Path,
@@ -67,11 +93,79 @@ def rename_sidecars_after_media_rename(
             old_json.rename(new_json)
 
 
+def handle_takeout_sidecars_after_media(
+    old_media_name: str,
+    old_media_parent: Path,
+    new_media: Path,
+    dry_run: bool,
+    stats: RunStats,
+    remove_sidecars: bool,
+) -> None:
+    if remove_sidecars:
+        remove_takeout_sidecars(old_media_parent / old_media_name, dry_run, stats)
+        return
+    rename_sidecars_after_media_rename(
+        old_media_name, old_media_parent, new_media, dry_run
+    )
+
+
+def cleanup_orphan_takeout_sidecars(
+    root: Path,
+    dry_run: bool,
+    stats: RunStats,
+) -> None:
+    """Borra JSON de Takeout cuyo medio ya no está en la misma carpeta (p. ej. tras un move)."""
+    for path in root.rglob("*"):
+        if not path.is_file() or not is_takeout_media_sidecar(path):
+            continue
+        media = media_path_for_takeout_sidecar(path)
+        if media is not None and media.is_file():
+            continue
+        if dry_run:
+            logger.info("  sidecar huérfano: borrar %s", path)
+        else:
+            try:
+                path.unlink()
+            except OSError as e:
+                stats.errors += 1
+                stats.error_messages.append(f"{path}: {e}")
+                logger.error("Error al borrar sidecar %s: %s", path, e)
+                continue
+        stats.sidecars_removed += 1
+
+
+def remove_empty_directories(
+    root: Path,
+    dry_run: bool,
+    stats: RunStats,
+) -> None:
+    """Elimina subdirectorios vacíos bajo root (de hoja a raíz); no borra root."""
+    root = root.resolve()
+    for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+        current = Path(dirpath)
+        if current == root:
+            continue
+        if dirnames or filenames:
+            continue
+        if dry_run:
+            logger.info("  directorio vacío: borrar %s", current)
+        else:
+            try:
+                current.rmdir()
+            except OSError as e:
+                stats.errors += 1
+                stats.error_messages.append(f"{current}: {e}")
+                logger.error("Error al borrar directorio %s: %s", current, e)
+                continue
+        stats.empty_dirs_removed += 1
+
+
 def process_file(
     path: Path,
     dry_run: bool,
     stats: RunStats,
     target_directory: Path | None = None,
+    remove_takeout_sidecars_after: bool = False,
 ) -> None:
     if not is_media_file(path):
         return
@@ -80,6 +174,8 @@ def process_file(
     if has_organizacion_name(stem):
         stats.already_ok += 1
         logger.debug("Ya con nombre conforme: %s", path)
+        if remove_takeout_sidecars_after:
+            remove_takeout_sidecars(path, dry_run, stats)
         return
 
     capture_dt, source = resolve_capture_datetime(path)
@@ -95,6 +191,8 @@ def process_file(
 
     if dest.resolve() == path.resolve():
         stats.already_ok += 1
+        if remove_takeout_sidecars_after:
+            remove_takeout_sidecars(path, dry_run, stats)
         return
 
     if target_directory is not None and dest_dir != path.parent:
@@ -118,14 +216,28 @@ def process_file(
 
     if dry_run:
         stats.renamed += 1
-        rename_sidecars_after_media_rename(old_name, parent, dest, dry_run=True)
+        handle_takeout_sidecars_after_media(
+            old_name,
+            parent,
+            dest,
+            dry_run=True,
+            stats=stats,
+            remove_sidecars=remove_takeout_sidecars_after,
+        )
         return
 
     try:
         if target_directory is not None:
             dest_dir.mkdir(parents=True, exist_ok=True)
         path.rename(dest)
-        rename_sidecars_after_media_rename(old_name, parent, dest, dry_run=False)
+        handle_takeout_sidecars_after_media(
+            old_name,
+            parent,
+            dest,
+            dry_run=False,
+            stats=stats,
+            remove_sidecars=remove_takeout_sidecars_after,
+        )
     except OSError as e:
         stats.errors += 1
         stats.error_messages.append(f"{path}: {e}")
@@ -163,6 +275,10 @@ def print_summary(stats: RunStats, dry_run: bool) -> None:
     print(f"Renombrados: {stats.renamed}")
     print(f"Ya correctos: {stats.already_ok}")
     print(f"Omitidos (sin fecha): {stats.skipped_no_date}")
+    if stats.sidecars_removed:
+        print(f"JSON Takeout eliminados: {stats.sidecars_removed}")
+    if stats.empty_dirs_removed:
+        print(f"Directorios vacíos eliminados: {stats.empty_dirs_removed}")
     print(f"Errores: {stats.errors}")
     if stats.error_messages:
         for msg in stats.error_messages:

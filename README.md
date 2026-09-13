@@ -33,7 +33,7 @@ La fecha y hora se obtienen en este orden:
 
 Si solo hay fecha (sin hora) en la fuente, se usa `000000` como hora.
 
-Los JSON sidecar se renomban junto al medio para mantener la asociación.
+Los JSON sidecar de Takeout se renomban junto al medio para mantener la asociación (solo en este paso).
 
 **Uso:**
 
@@ -52,7 +52,7 @@ rename-by-date /ruta/al/takeout -v
 - Los nombres antiguos `yyyy-mm-dd-...` se migran al formato nuevo usando metadatos.
 - Al renombrar, se limpian del nombre original fechas y horas redundantes.
 - Si el nombre destino ya existe, se añade `-2`, `-3`, etc.
-- Extensiones tratadas: `jpg`, `jpeg`, `png`, `heic`, `webp`, `gif`, `tif`, `tiff`, `mp4`, `mov`, `m4v`, `3gp`, `avi`, `mkv`.
+- Extensiones tratadas: imágenes (`jpg`, `jpeg`, `png`, `heic`, `webp`, `gif`, `tif`, `tiff`, RAW `cr2`, `cr3`, `nef`, `arw`, `dng`, …), vídeo (`mp4`, `mov`, `m4v`, `mts`, `m2ts`, `3gp`, `avi`, `mkv`, `mp` Motion Photo de Pixel).
 
 ### `organize-photos`
 
@@ -60,6 +60,8 @@ Combina **renombrado** (misma lógica que `rename-by-date`) con **ubicación** e
 
 - Volcados **planos** (sin carpeta de año `AAAA` en la ruta): mueve cada medio a `{photos-root}/{AAAA}/`.
 - Archivos ya bajo `.../AAAA/` o `.../AAAA/AAAA-MM_Evento/`: solo renombra, sin cambiar de carpeta.
+- **Elimina** los JSON de Takeout (`*.json`, `*.supplemental-metadata.json`) asociados a cada medio procesado; no se copian a la fototeca. Al final borra sidecars huérfanos en el directorio escaneado (p. ej. tras mover el archivo).
+- **Elimina** subcarpetas que queden completamente vacías bajo el directorio escaneado (p. ej. álbumes de Takeout ya vacíos).
 
 **Uso:**
 

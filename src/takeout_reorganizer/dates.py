@@ -26,8 +26,30 @@ IMAGE_EXTENSIONS = {
     ".gif",
     ".tif",
     ".tiff",
+    # RAW (pares con JPG en la misma carpeta según ORGANIZACION_FOTOS.md)
+    ".cr2",
+    ".cr3",
+    ".nef",
+    ".nrw",
+    ".arw",
+    ".dng",
+    ".orf",
+    ".rw2",
+    ".raf",
+    ".pef",
+    ".x3f",
 }
-VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".3gp", ".avi", ".mkv"}
+VIDEO_EXTENSIONS = {
+    ".mp4",
+    ".mov",
+    ".m4v",
+    ".3gp",
+    ".avi",
+    ".mkv",
+    ".mts",
+    ".m2ts",
+    ".mp",  # Motion Photo (vídeo asociado en Google Pixel / Takeout)
+}
 MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 EXIF_DATETIME_TAGS = (
@@ -50,6 +72,9 @@ _FILENAME_DATE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"WhatsApp Image (\d{4})-(\d{2})-(\d{2})"), "ymd"),
     (re.compile(r"WhatsApp Video (\d{4})-(\d{2})-(\d{2})"), "ymd"),
 ]
+
+_FILENAME_YEAR_PREFIX_RE = re.compile(r"^(\d{4})-(?!\d{2}-\d{2})")
+_ALBUM_FOLDER_YEAR_RE = re.compile(r"\b((?:19|20)\d{2})\b")
 
 _FILENAME_DATETIME_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})"), "ymd_hms"),
@@ -242,12 +267,16 @@ def _parse_video_creation_time(value: str) -> datetime | None:
 def datetime_from_video_metadata(path: Path) -> datetime | None:
     try:
         from mutagen import File as MutagenFile
+        from mutagen import MutagenError
     except ImportError:
         return None
 
     try:
         audio = MutagenFile(path)
-    except OSError:
+    except (OSError, MutagenError):
+        return None
+    except Exception:
+        # Mutagen a veces elige un parser incorrecto (p. ej. WAVE para .m4v).
         return None
     if audio is None:
         return None
@@ -330,6 +359,25 @@ def takeout_json_paths(media_path: Path) -> list[Path]:
     ]
 
 
+def is_takeout_media_sidecar(path: Path) -> bool:
+    name = path.name
+    if name.endswith(".supplemental-metadata.json"):
+        return True
+    if path.suffix.lower() != ".json":
+        return False
+    return Path(path.stem).suffix.lower() in MEDIA_EXTENSIONS
+
+
+def media_path_for_takeout_sidecar(sidecar: Path) -> Path | None:
+    name = sidecar.name
+    if name.endswith(".supplemental-metadata.json"):
+        base = name[: -len(".supplemental-metadata.json")]
+        return sidecar.parent / base
+    if sidecar.suffix.lower() == ".json" and is_takeout_media_sidecar(sidecar):
+        return sidecar.parent / sidecar.stem
+    return None
+
+
 def datetime_from_takeout_json(media_path: Path) -> datetime | None:
     for json_path in takeout_json_paths(media_path):
         if not json_path.is_file():
@@ -396,6 +444,22 @@ def datetime_from_filename(path: Path) -> datetime | None:
             parsed = _groups_to_date(match.groups(), kind)
             if parsed is not None:
                 return datetime.combine(parsed, datetime.min.time())
+    match = _FILENAME_YEAR_PREFIX_RE.match(name)
+    if match:
+        y = int(match.group(1))
+        if _valid_ymd(y, 1, 1):
+            return datetime(y, 1, 1)
+    return None
+
+
+def datetime_from_album_folder(path: Path) -> datetime | None:
+    """Año en el nombre de la carpeta padre (p. ej. «Photos from 2013»)."""
+    match = _ALBUM_FOLDER_YEAR_RE.search(path.parent.name)
+    if not match:
+        return None
+    y = int(match.group(1))
+    if _valid_ymd(y, 1, 1):
+        return datetime(y, 1, 1)
     return None
 
 
@@ -417,10 +481,20 @@ def resolve_capture_datetime(path: Path) -> tuple[datetime | None, str]:
     dt = datetime_from_filename(path)
     if dt is not None:
         source = "filename"
-        if dt.time() == datetime.min.time():
+        if dt.time() == datetime.min.time() and dt.day == 1 and dt.month == 1:
+            # Solo año en el nombre (p. ej. 2013-MOVIE).
+            if _FILENAME_YEAR_PREFIX_RE.match(path.stem):
+                source = "filename-year-only"
+            else:
+                source = "filename-date-only"
+        elif dt.time() == datetime.min.time():
             dt = dt.replace(hour=0, minute=0, second=0)
             source = "filename-date-only"
         return dt, source
+
+    dt = datetime_from_album_folder(path)
+    if dt is not None:
+        return dt, "album-folder-year-only"
 
     return None, ""
 

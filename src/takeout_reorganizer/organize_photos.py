@@ -10,9 +10,11 @@ from pathlib import Path
 from takeout_reorganizer.dates import is_year_directory_name, resolve_capture_datetime
 from takeout_reorganizer.rename_by_date import (
     RunStats,
+    cleanup_orphan_takeout_sidecars,
     collect_media_files,
     print_summary,
     process_file,
+    remove_empty_directories,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,16 @@ def run(
                 photos_root,
                 capture_dt.year,
             )
-        process_file(path, dry_run, stats, target_directory=target_dir)
+        process_file(
+            path,
+            dry_run,
+            stats,
+            target_directory=target_dir,
+            remove_takeout_sidecars_after=True,
+        )
+
+    cleanup_orphan_takeout_sidecars(scan_root, dry_run, stats)
+    remove_empty_directories(scan_root, dry_run, stats)
 
     return stats
 
