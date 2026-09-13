@@ -12,6 +12,7 @@ dependencies = [
 
 [project.scripts]
 rename-by-date = "takeout_reorganizer.rename_by_date:main"
+organize-photos = "takeout_reorganizer.organize_photos:main"
 
 [build-system]
 requires = ["setuptools>=61"]

@@ -1,4 +1,4 @@
-"""Renombra fotos y vídeos a yyyy-mm-dd-nombre.ext según fecha de toma."""
+"""Renombra fotos y vídeos a AAAA-MM-DD_HHMMSS[_descripcion].ext según fecha de toma."""
 
 from __future__ import annotations
 
@@ -6,13 +6,15 @@ import argparse
 import logging
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from takeout_reorganizer.dates import (
-    format_date_prefix,
-    has_date_prefix,
+    format_organizacion_stem,
+    has_organizacion_name,
     is_media_file,
-    resolve_capture_date,
+    resolve_capture_datetime,
+    sanitize_description,
     sanitize_stem_for_rename,
     takeout_json_paths,
 )
@@ -30,10 +32,9 @@ class RunStats:
     error_messages: list[str] = field(default_factory=list)
 
 
-def build_target_stem(capture_date, original_stem: str) -> str:
-    base = sanitize_stem_for_rename(original_stem)
-    prefix = format_date_prefix(capture_date)
-    return f"{prefix}-{base}"
+def build_target_stem(capture_dt: datetime, original_stem: str) -> str:
+    description = sanitize_description(sanitize_stem_for_rename(original_stem))
+    return format_organizacion_stem(capture_dt, description)
 
 
 def unique_destination(directory: Path, stem: str, suffix: str) -> Path:
@@ -66,36 +67,51 @@ def rename_sidecars_after_media_rename(
             old_json.rename(new_json)
 
 
-def process_file(path: Path, dry_run: bool, stats: RunStats) -> None:
+def process_file(
+    path: Path,
+    dry_run: bool,
+    stats: RunStats,
+    target_directory: Path | None = None,
+) -> None:
     if not is_media_file(path):
         return
 
     stem = path.stem
-    if has_date_prefix(stem):
+    if has_organizacion_name(stem):
         stats.already_ok += 1
-        logger.debug("Ya con prefijo de fecha: %s", path)
+        logger.debug("Ya con nombre conforme: %s", path)
         return
 
-    capture_date, source = resolve_capture_date(path)
-    if capture_date is None:
+    capture_dt, source = resolve_capture_datetime(path)
+    if capture_dt is None:
         stats.skipped_no_date += 1
         stats.skipped_paths.append(path)
         logger.warning("Sin fecha de toma, omitido: %s", path)
         return
 
-    target_stem = build_target_stem(capture_date, stem)
-    dest = unique_destination(path.parent, target_stem, path.suffix)
+    target_stem = build_target_stem(capture_dt, stem)
+    dest_dir = target_directory if target_directory is not None else path.parent
+    dest = unique_destination(dest_dir, target_stem, path.suffix)
 
     if dest.resolve() == path.resolve():
         stats.already_ok += 1
         return
 
-    logger.info(
-        "%s -> %s (fuente: %s)",
-        path.name,
-        dest.name,
-        source,
-    )
+    if target_directory is not None and dest_dir != path.parent:
+        logger.info(
+            "%s -> %s/%s (fuente: %s)",
+            path.name,
+            dest_dir,
+            dest.name,
+            source,
+        )
+    else:
+        logger.info(
+            "%s -> %s (fuente: %s)",
+            path.name,
+            dest.name,
+            source,
+        )
 
     old_name = path.name
     parent = path.parent
@@ -106,6 +122,8 @@ def process_file(path: Path, dry_run: bool, stats: RunStats) -> None:
         return
 
     try:
+        if target_directory is not None:
+            dest_dir.mkdir(parents=True, exist_ok=True)
         path.rename(dest)
         rename_sidecars_after_media_rename(old_name, parent, dest, dry_run=False)
     except OSError as e:
@@ -153,7 +171,10 @@ def print_summary(stats: RunStats, dry_run: bool) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Renombra fotos y vídeos a yyyy-mm-dd-nombre.ext usando fecha de toma.",
+        description=(
+            "Renombra fotos y vídeos a AAAA-MM-DD_HHMMSS[_descripcion].ext "
+            "usando fecha y hora de toma."
+        ),
     )
     parser.add_argument(
         "directory",
