@@ -28,15 +28,35 @@ def path_under_year_tree(path: Path, scan_root: Path) -> bool:
     return any(is_year_directory_name(part) for part in relative.parts)
 
 
+def path_under_photos_year_tree(path: Path, photos_root: Path) -> bool:
+    """El medio ya está bajo photos_root/AAAA/ (o subcarpeta de evento)."""
+    try:
+        relative = path.parent.relative_to(photos_root.resolve())
+    except ValueError:
+        return False
+    if not relative.parts:
+        return False
+    return is_year_directory_name(relative.parts[0])
+
+
 def resolve_target_directory(
     path: Path,
     scan_root: Path,
     photos_root: Path,
     year: int,
 ) -> Path | None:
-    if path_under_year_tree(path, scan_root):
+    photos_root = photos_root.resolve()
+    scan_root = scan_root.resolve()
+    target = photos_root / str(year)
+
+    if path_under_photos_year_tree(path, photos_root):
         return None
-    return photos_root / str(year)
+
+    # Mismo árbol: no reubicar lo que ya vive en .../AAAA/ bajo el escaneo.
+    if photos_root == scan_root and path_under_year_tree(path, scan_root):
+        return None
+
+    return target
 
 
 def run(

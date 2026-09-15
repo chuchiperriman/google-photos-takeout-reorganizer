@@ -452,6 +452,51 @@ def datetime_from_filename(path: Path) -> datetime | None:
     return None
 
 
+def _parse_path_year_component(part: str) -> int | None:
+    if not is_year_directory_name(part):
+        return None
+    y = int(part)
+    return y if _valid_ymd(y, 1, 1) else None
+
+
+def _parse_path_month_component(part: str) -> int | None:
+    if not part.isdigit() or len(part) > 2:
+        return None
+    m = int(part)
+    return m if 1 <= m <= 12 else None
+
+
+def _parse_path_day_component(part: str) -> int | None:
+    if not part.isdigit() or len(part) > 2:
+        return None
+    d = int(part)
+    return d if 1 <= d <= 31 else None
+
+
+def datetime_from_directory_path(path: Path) -> datetime | None:
+    """Fecha en carpetas del path: .../yyyy/mm/dd/ o .../yyyy/mm/."""
+    parts = path.parent.parts
+    best: datetime | None = None
+
+    for i in range(len(parts) - 2):
+        y = _parse_path_year_component(parts[i])
+        m = _parse_path_month_component(parts[i + 1])
+        d = _parse_path_day_component(parts[i + 2])
+        if y is not None and m is not None and d is not None and _valid_ymd(y, m, d):
+            best = datetime(y, m, d)
+
+    if best is not None:
+        return best
+
+    for i in range(len(parts) - 1):
+        y = _parse_path_year_component(parts[i])
+        m = _parse_path_month_component(parts[i + 1])
+        if y is not None and m is not None and _valid_ymd(y, m, 1):
+            best = datetime(y, m, 1)
+
+    return best
+
+
 def datetime_from_album_folder(path: Path) -> datetime | None:
     """Año en el nombre de la carpeta padre (p. ej. «Photos from 2013»)."""
     match = _ALBUM_FOLDER_YEAR_RE.search(path.parent.name)
@@ -491,6 +536,10 @@ def resolve_capture_datetime(path: Path) -> tuple[datetime | None, str]:
             dt = dt.replace(hour=0, minute=0, second=0)
             source = "filename-date-only"
         return dt, source
+
+    dt = datetime_from_directory_path(path)
+    if dt is not None:
+        return dt, "directory-path"
 
     dt = datetime_from_album_folder(path)
     if dt is not None:

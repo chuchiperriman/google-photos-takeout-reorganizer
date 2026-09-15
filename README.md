@@ -29,7 +29,9 @@ La fecha y hora se obtienen en este orden:
 1. Metadatos del fichero (EXIF en fotos; etiquetas de creación en vídeos)
 2. JSON de Takeout junto al archivo (`*.json` o `*.supplemental-metadata.json`)
 3. Fecha u hora presentes en el nombre del archivo (p. ej. `PXL_20200315_…`, `IMG_20200101_120000`)
-4. Si no hay fecha: el archivo **no se renombra** y se registra un aviso
+4. Carpetas en la ruta: `.../yyyy/mm/dd/` o `.../yyyy/mm/` (día 1 si solo hay año y mes)
+5. Año en el nombre de la carpeta contenedora (p. ej. `Photos from 2013`)
+6. Si no hay fecha: el archivo **no se renombra** y se registra un aviso
 
 Si solo hay fecha (sin hora) en la fuente, se usa `000000` como hora.
 
@@ -71,7 +73,7 @@ organize-photos /ruta/Fotos --dry-run
 organize-photos /ruta/al/takeout -v
 ```
 
-- `--photos-root`: raíz de la fototeca (por defecto, el mismo directorio que se escanea).
+- `--photos-root`: raíz de la fototeca (por defecto, el mismo directorio que se escanea). Si es distinto del directorio escaneado, todo lo que no esté ya bajo `destino/AAAA/` se mueve allí (también si en el origen había carpetas `AAAA/`).
 - `--dry-run`, `-v`: igual que en `rename-by-date`.
 
 No crea carpetas de evento automáticamente.

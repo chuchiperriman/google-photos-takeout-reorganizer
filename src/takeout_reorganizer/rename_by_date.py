@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -141,23 +140,38 @@ def remove_empty_directories(
 ) -> None:
     """Elimina subdirectorios vacíos bajo root (de hoja a raíz); no borra root."""
     root = root.resolve()
-    for dirpath, dirnames, filenames in os.walk(root, topdown=False):
-        current = Path(dirpath)
-        if current == root:
-            continue
-        if dirnames or filenames:
-            continue
-        if dry_run:
-            logger.info("  directorio vacío: borrar %s", current)
-        else:
+    while True:
+        removed_any = False
+        candidates = sorted(
+            (p for p in root.rglob("*") if p.is_dir()),
+            key=lambda p: len(p.parts),
+            reverse=True,
+        )
+        for current in candidates:
+            if current == root:
+                continue
             try:
-                current.rmdir()
+                if any(current.iterdir()):
+                    continue
             except OSError as e:
                 stats.errors += 1
                 stats.error_messages.append(f"{current}: {e}")
-                logger.error("Error al borrar directorio %s: %s", current, e)
+                logger.error("No se pudo listar %s: %s", current, e)
                 continue
-        stats.empty_dirs_removed += 1
+            if dry_run:
+                logger.info("  directorio vacío: borrar %s", current)
+            else:
+                try:
+                    current.rmdir()
+                except OSError as e:
+                    stats.errors += 1
+                    stats.error_messages.append(f"{current}: {e}")
+                    logger.error("Error al borrar directorio %s: %s", current, e)
+                    continue
+            stats.empty_dirs_removed += 1
+            removed_any = True
+        if not removed_any:
+            break
 
 
 def process_file(
@@ -172,10 +186,49 @@ def process_file(
 
     stem = path.stem
     if has_organizacion_name(stem):
-        stats.already_ok += 1
-        logger.debug("Ya con nombre conforme: %s", path)
-        if remove_takeout_sidecars_after:
-            remove_takeout_sidecars(path, dry_run, stats)
+        dest_dir = target_directory if target_directory is not None else path.parent
+        dest = unique_destination(dest_dir, stem, path.suffix)
+        if dest.resolve() == path.resolve():
+            stats.already_ok += 1
+            logger.debug("Ya con nombre conforme: %s", path)
+            if remove_takeout_sidecars_after:
+                remove_takeout_sidecars(path, dry_run, stats)
+            return
+        if target_directory is not None and dest_dir != path.parent:
+            logger.info("%s -> %s/%s (fuente: nombre-conforme)", path.name, dest_dir, dest.name)
+        else:
+            logger.info("%s -> %s (fuente: nombre-conforme)", path.name, dest.name)
+        old_name = path.name
+        parent = path.parent
+        if dry_run:
+            stats.renamed += 1
+            handle_takeout_sidecars_after_media(
+                old_name,
+                parent,
+                dest,
+                dry_run=True,
+                stats=stats,
+                remove_sidecars=remove_takeout_sidecars_after,
+            )
+            return
+        try:
+            if target_directory is not None:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+            path.rename(dest)
+            handle_takeout_sidecars_after_media(
+                old_name,
+                parent,
+                dest,
+                dry_run=False,
+                stats=stats,
+                remove_sidecars=remove_takeout_sidecars_after,
+            )
+        except OSError as e:
+            stats.errors += 1
+            stats.error_messages.append(f"{path}: {e}")
+            logger.error("Error al mover %s: %s", path, e)
+            return
+        stats.renamed += 1
         return
 
     capture_dt, source = resolve_capture_datetime(path)
