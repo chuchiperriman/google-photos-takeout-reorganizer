@@ -180,6 +180,7 @@ def process_file(
     stats: RunStats,
     target_directory: Path | None = None,
     remove_takeout_sidecars_after: bool = False,
+    fallback_oldest_date: bool = False,
 ) -> None:
     if not is_media_file(path):
         return
@@ -231,7 +232,10 @@ def process_file(
         stats.renamed += 1
         return
 
-    capture_dt, source = resolve_capture_datetime(path)
+    capture_dt, source = resolve_capture_datetime(
+        path,
+        fallback_oldest=fallback_oldest_date,
+    )
     if capture_dt is None:
         stats.skipped_no_date += 1
         stats.skipped_paths.append(path)
@@ -308,7 +312,7 @@ def collect_media_files(root: Path) -> list[Path]:
     return sorted(files)
 
 
-def run(root: Path, dry_run: bool) -> RunStats:
+def run(root: Path, dry_run: bool, *, fallback_oldest_date: bool = False) -> RunStats:
     stats = RunStats()
     if not root.is_dir():
         logger.error("No es un directorio: %s", root)
@@ -317,7 +321,12 @@ def run(root: Path, dry_run: bool) -> RunStats:
         return stats
 
     for path in collect_media_files(root):
-        process_file(path, dry_run, stats)
+        process_file(
+            path,
+            dry_run,
+            stats,
+            fallback_oldest_date=fallback_oldest_date,
+        )
 
     return stats
 
@@ -361,6 +370,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Más detalle en el log",
     )
+    parser.add_argument(
+        "--fallback-oldest-date",
+        action="store_true",
+        help=(
+            "Si no hay fecha de toma en el orden habitual, usar la más antigua "
+            "entre EXIF, JSON, nombre, ruta y fechas del fichero (mtime, ctime, …)"
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -371,7 +388,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         logger.info("Modo simulación (--dry-run)")
 
-    stats = run(args.directory.resolve(), args.dry_run)
+    stats = run(
+        args.directory.resolve(),
+        args.dry_run,
+        fallback_oldest_date=args.fallback_oldest_date,
+    )
     print_summary(stats, args.dry_run)
 
     return 1 if stats.errors else 0

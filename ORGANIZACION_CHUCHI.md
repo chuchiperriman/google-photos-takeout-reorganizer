@@ -28,3 +28,19 @@ Para sincronizarlos, podemos meter las fotos nuevas en el PC y luego lanzar nu r
 
     TODO: Pendientes de crear un script de sincronización
 
+
+# Proceso seguido para ordenar fotos anteriores:
+
+* Copiamos ficheros a la carpeta /home/chuchi/temporal/reorganizar
+* Compromimos vídeos y fotos raw
+
+      compress-mov /home/chuchi/temporal/reorganizar --delete --raw-to-jpeg
+
+* Reorganizamos fotos en una carpeta destino temporal
+
+      organize-photos ~/temporal/reorganizar --photos-root ~/temporal/destino
+
+* Revisamos que no quede nada en la carpeta de origen
+* Copiamos las fotos con Archivos de gnome a la carpeta de Fotos
+
+

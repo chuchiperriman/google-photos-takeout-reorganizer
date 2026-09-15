@@ -63,6 +63,8 @@ def run(
     scan_root: Path,
     photos_root: Path,
     dry_run: bool,
+    *,
+    fallback_oldest_date: bool = False,
 ) -> RunStats:
     stats = RunStats()
     if not scan_root.is_dir():
@@ -75,7 +77,10 @@ def run(
     scan_root = scan_root.resolve()
 
     for path in collect_media_files(scan_root):
-        capture_dt, _ = resolve_capture_datetime(path)
+        capture_dt, _ = resolve_capture_datetime(
+            path,
+            fallback_oldest=fallback_oldest_date,
+        )
         target_dir: Path | None = None
         if capture_dt is not None:
             target_dir = resolve_target_directory(
@@ -90,6 +95,7 @@ def run(
             stats,
             target_directory=target_dir,
             remove_takeout_sidecars_after=True,
+            fallback_oldest_date=fallback_oldest_date,
         )
 
     cleanup_orphan_takeout_sidecars(scan_root, dry_run, stats)
@@ -127,6 +133,14 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Más detalle en el log",
     )
+    parser.add_argument(
+        "--fallback-oldest-date",
+        action="store_true",
+        help=(
+            "Si no hay fecha de toma en el orden habitual, usar la más antigua "
+            "entre EXIF, JSON, nombre, ruta y fechas del fichero (mtime, ctime, …)"
+        ),
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -140,7 +154,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run:
         logger.info("Modo simulación (--dry-run)")
 
-    stats = run(scan_root, photos_root, args.dry_run)
+    stats = run(
+        scan_root,
+        photos_root,
+        args.dry_run,
+        fallback_oldest_date=args.fallback_oldest_date,
+    )
     print_summary(stats, args.dry_run)
 
     return 1 if stats.errors else 0

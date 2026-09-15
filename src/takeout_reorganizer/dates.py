@@ -240,19 +240,32 @@ def _exif_tag_map(exif) -> dict[str, object]:
     return result
 
 
-def datetime_from_image_exif(path: Path) -> datetime | None:
+def _normalize_datetime(dt: datetime) -> datetime:
+    if dt.tzinfo is not None:
+        return dt.astimezone().replace(tzinfo=None)
+    return dt
+
+
+def datetimes_from_image_exif(path: Path) -> list[tuple[datetime, str]]:
+    results: list[tuple[datetime, str]] = []
     try:
         with Image.open(path) as img:
             exif = img.getexif()
             if not exif:
-                return None
+                return results
             tags = _exif_tag_map(exif)
             for tag_name in EXIF_DATETIME_TAGS:
                 parsed = _parse_exif_datetime(tags.get(tag_name))
                 if parsed is not None:
-                    return parsed
+                    results.append((parsed, f"exif-{tag_name}"))
     except OSError:
-        return None
+        return results
+    return results
+
+
+def datetime_from_image_exif(path: Path) -> datetime | None:
+    for dt, _ in datetimes_from_image_exif(path):
+        return dt
     return None
 
 
@@ -279,28 +292,32 @@ def _parse_video_creation_time(value: str) -> datetime | None:
     return None
 
 
-def datetime_from_video_metadata(path: Path) -> datetime | None:
+_VIDEO_METADATA_DATE_KEYS = ("\xa9day", "creation_time", "date")
+
+
+def datetimes_from_video_metadata(path: Path) -> list[tuple[datetime, str]]:
+    results: list[tuple[datetime, str]] = []
     try:
         from mutagen import File as MutagenFile
         from mutagen import MutagenError
     except ImportError:
-        return None
+        return results
 
     try:
         audio = MutagenFile(path)
     except (OSError, MutagenError):
-        return None
+        return results
     except Exception:
         # Mutagen a veces elige un parser incorrecto (p. ej. WAVE para .m4v).
-        return None
+        return results
     if audio is None:
-        return None
+        return results
 
     tags = audio.tags
     if tags is None:
-        return None
+        return results
 
-    for key in ("\xa9day", "creation_time", "date"):
+    for key in _VIDEO_METADATA_DATE_KEYS:
         if key in tags:
             raw = tags[key]
             if isinstance(raw, (list, tuple)) and raw:
@@ -309,8 +326,13 @@ def datetime_from_video_metadata(path: Path) -> datetime | None:
                 raw = raw.text[0]
             parsed = _parse_video_creation_time(str(raw))
             if parsed is not None:
-                return parsed
+                results.append((parsed, f"video-{key!r}"))
+    return results
 
+
+def datetime_from_video_metadata(path: Path) -> datetime | None:
+    for dt, _ in datetimes_from_video_metadata(path):
+        return dt
     return None
 
 
@@ -344,29 +366,6 @@ def _timestamp_to_datetime(timestamp: str | int | float) -> datetime | None:
         return None
 
 
-def _datetime_from_takeout_json(data: object) -> datetime | None:
-    if not isinstance(data, dict):
-        return None
-
-    photo_taken = data.get("photoTakenTime")
-    if isinstance(photo_taken, dict):
-        ts = photo_taken.get("timestamp")
-        if ts is not None:
-            parsed = _timestamp_to_datetime(ts)
-            if parsed is not None:
-                return parsed
-
-    creation = data.get("creationTime")
-    if isinstance(creation, dict):
-        ts = creation.get("timestamp")
-        if ts is not None:
-            parsed = _timestamp_to_datetime(ts)
-            if parsed is not None:
-                return parsed
-
-    return None
-
-
 def takeout_json_paths(media_path: Path) -> list[Path]:
     return [
         media_path.with_suffix(media_path.suffix + ".json"),
@@ -393,7 +392,8 @@ def media_path_for_takeout_sidecar(sidecar: Path) -> Path | None:
     return None
 
 
-def datetime_from_takeout_json(media_path: Path) -> datetime | None:
+def datetimes_from_takeout_json(media_path: Path) -> list[tuple[datetime, str]]:
+    results: list[tuple[datetime, str]] = []
     for json_path in takeout_json_paths(media_path):
         if not json_path.is_file():
             continue
@@ -402,9 +402,28 @@ def datetime_from_takeout_json(media_path: Path) -> datetime | None:
                 data = json.load(f)
         except (OSError, json.JSONDecodeError):
             continue
-        parsed = _datetime_from_takeout_json(data)
-        if parsed is not None:
-            return parsed
+        if not isinstance(data, dict):
+            continue
+        photo_taken = data.get("photoTakenTime")
+        if isinstance(photo_taken, dict):
+            ts = photo_taken.get("timestamp")
+            if ts is not None:
+                parsed = _timestamp_to_datetime(ts)
+                if parsed is not None:
+                    results.append((parsed, "takeout-photoTakenTime"))
+        creation = data.get("creationTime")
+        if isinstance(creation, dict):
+            ts = creation.get("timestamp")
+            if ts is not None:
+                parsed = _timestamp_to_datetime(ts)
+                if parsed is not None:
+                    results.append((parsed, "takeout-creationTime"))
+    return results
+
+
+def datetime_from_takeout_json(media_path: Path) -> datetime | None:
+    for dt, _ in datetimes_from_takeout_json(media_path):
+        return dt
     return None
 
 
@@ -528,7 +547,67 @@ def date_from_filename(path: Path) -> date | None:
     return dt.date() if dt else None
 
 
-def resolve_capture_datetime(path: Path) -> tuple[datetime | None, str]:
+def datetimes_from_filesystem(path: Path) -> list[tuple[datetime, str]]:
+    results: list[tuple[datetime, str]] = []
+    try:
+        stat = path.stat()
+    except OSError:
+        return results
+    for label, ts in (
+        ("fs-mtime", stat.st_mtime),
+        ("fs-ctime", stat.st_ctime),
+        ("fs-atime", stat.st_atime),
+    ):
+        parsed = _timestamp_to_datetime(ts)
+        if parsed is not None:
+            results.append((parsed, label))
+    birth = getattr(stat, "st_birthtime", None)
+    if birth is not None:
+        parsed = _timestamp_to_datetime(birth)
+        if parsed is not None:
+            results.append((parsed, "fs-birthtime"))
+    return results
+
+
+def collect_datetime_candidates(path: Path) -> list[tuple[datetime, str]]:
+    """Todas las fechas conocidas del fichero (metadatos, nombre, ruta, disco)."""
+    candidates: list[tuple[datetime, str]] = []
+    ext = path.suffix.lower()
+    if ext in IMAGE_EXTENSIONS:
+        candidates.extend(datetimes_from_image_exif(path))
+    if ext in VIDEO_EXTENSIONS:
+        candidates.extend(datetimes_from_video_metadata(path))
+    candidates.extend(datetimes_from_takeout_json(path))
+    dt = datetime_from_filename(path)
+    if dt is not None:
+        candidates.append((dt, "filename"))
+    dt = datetime_from_directory_path(path)
+    if dt is not None:
+        candidates.append((dt, "directory-path"))
+    dt = datetime_from_album_folder(path)
+    if dt is not None:
+        candidates.append((dt, "album-folder-year-only"))
+    candidates.extend(datetimes_from_filesystem(path))
+    return candidates
+
+
+def resolve_oldest_datetime(path: Path) -> tuple[datetime | None, str]:
+    """La fecha-hora más antigua entre todas las candidatas."""
+    candidates = collect_datetime_candidates(path)
+    if not candidates:
+        return None, ""
+    oldest_dt, label = min(
+        candidates,
+        key=lambda item: _normalize_datetime(item[0]),
+    )
+    return _normalize_datetime(oldest_dt), f"oldest-{label}"
+
+
+def resolve_capture_datetime(
+    path: Path,
+    *,
+    fallback_oldest: bool = False,
+) -> tuple[datetime | None, str]:
     """Devuelve (fecha-hora, fuente) o (None, '') si no hay fecha."""
     dt = datetime_from_file_metadata(path)
     if dt is not None:
@@ -560,12 +639,19 @@ def resolve_capture_datetime(path: Path) -> tuple[datetime | None, str]:
     if dt is not None:
         return dt, "album-folder-year-only"
 
+    if fallback_oldest:
+        return resolve_oldest_datetime(path)
+
     return None, ""
 
 
-def resolve_capture_date(path: Path) -> tuple[date | None, str]:
+def resolve_capture_date(
+    path: Path,
+    *,
+    fallback_oldest: bool = False,
+) -> tuple[date | None, str]:
     """Devuelve (fecha, fuente) o (None, '') si no hay fecha."""
-    dt, source = resolve_capture_datetime(path)
+    dt, source = resolve_capture_datetime(path, fallback_oldest=fallback_oldest)
     if dt is None:
         return None, ""
     return dt.date(), source
