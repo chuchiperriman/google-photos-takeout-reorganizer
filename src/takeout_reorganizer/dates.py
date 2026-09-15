@@ -133,6 +133,8 @@ _YMD_IN_NAME_HYPHEN_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _YMD_IN_NAME_COMPACT_RE = re.compile(r"(?<!\d)(\d{4})(\d{2})(\d{2})(?!\d)")
 _HMS_UNDERSCORE_RE = re.compile(r"(?<![0-9])(\d{2})(\d{2})(\d{2})(?![0-9])")
 
+MIN_CAPTURE_YEAR = 1980
+
 
 def _valid_ymd(y: int, m: int, d: int) -> bool:
     try:
@@ -144,6 +146,26 @@ def _valid_ymd(y: int, m: int, d: int) -> bool:
 
 def _valid_hms(h: int, mi: int, s: int) -> bool:
     return 0 <= h <= 23 and 0 <= mi <= 59 and 0 <= s <= 59
+
+
+def _is_valid_capture_datetime(dt: datetime) -> bool:
+    if dt.tzinfo is not None:
+        dt = dt.astimezone().replace(tzinfo=None)
+    if dt.year < MIN_CAPTURE_YEAR:
+        return False
+    return dt.date() <= date.today()
+
+
+def _valid_capture_ymd(y: int, m: int, d: int) -> bool:
+    if not _valid_ymd(y, m, d) or y < MIN_CAPTURE_YEAR:
+        return False
+    return date(y, m, d) <= date.today()
+
+
+def _filter_capture_datetime(dt: datetime | None) -> datetime | None:
+    if dt is None or not _is_valid_capture_datetime(dt):
+        return None
+    return dt
 
 
 def sanitize_stem_for_rename(stem: str) -> str:
@@ -216,7 +238,7 @@ def _parse_exif_datetime(value: str | bytes | None) -> datetime | None:
         return None
     for fmt in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
-            return datetime.strptime(text, fmt)
+            return _filter_capture_datetime(datetime.strptime(text, fmt))
         except ValueError:
             continue
     return None
@@ -281,12 +303,12 @@ def _parse_video_creation_time(value: str) -> datetime | None:
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(text)
+        return _filter_capture_datetime(datetime.fromisoformat(text))
     except ValueError:
         pass
     for fmt in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
-            return datetime.strptime(text, fmt)
+            return _filter_capture_datetime(datetime.strptime(text, fmt))
         except ValueError:
             continue
     return None
@@ -361,7 +383,7 @@ def _timestamp_to_datetime(timestamp: str | int | float) -> datetime | None:
     except (TypeError, ValueError):
         return None
     try:
-        return datetime.fromtimestamp(ts)
+        return _filter_capture_datetime(datetime.fromtimestamp(ts))
     except (OSError, OverflowError, ValueError):
         return None
 
@@ -437,10 +459,9 @@ def _groups_to_date(groups: tuple[str, ...], kind: str) -> date | None:
         y, m, d = int(groups[0]), int(groups[1]), int(groups[2])
     else:
         return None
-    try:
-        return date(y, m, d)
-    except ValueError:
+    if not _valid_capture_ymd(y, m, d):
         return None
+    return date(y, m, d)
 
 
 def _groups_to_datetime(groups: tuple[str, ...], kind: str) -> datetime | None:
@@ -453,9 +474,10 @@ def _groups_to_datetime(groups: tuple[str, ...], kind: str) -> datetime | None:
     else:
         return None
     try:
-        return datetime(y, m, d, h, mi, s)
+        dt = datetime(y, m, d, h, mi, s)
     except ValueError:
         return None
+    return _filter_capture_datetime(dt)
 
 
 def _stem_has_standardized_prefix(name: str) -> bool:
@@ -481,7 +503,7 @@ def datetime_from_filename(path: Path) -> datetime | None:
     match = _FILENAME_YEAR_PREFIX_RE.match(name)
     if match:
         y = int(match.group(1))
-        if _valid_ymd(y, 1, 1):
+        if _valid_capture_ymd(y, 1, 1):
             return datetime(y, 1, 1)
     return None
 
@@ -490,7 +512,7 @@ def _parse_path_year_component(part: str) -> int | None:
     if not is_year_directory_name(part):
         return None
     y = int(part)
-    return y if _valid_ymd(y, 1, 1) else None
+    return y if _valid_capture_ymd(y, 1, 1) else None
 
 
 def _parse_path_month_component(part: str) -> int | None:
@@ -516,7 +538,7 @@ def datetime_from_directory_path(path: Path) -> datetime | None:
         y = _parse_path_year_component(parts[i])
         m = _parse_path_month_component(parts[i + 1])
         d = _parse_path_day_component(parts[i + 2])
-        if y is not None and m is not None and d is not None and _valid_ymd(y, m, d):
+        if y is not None and m is not None and d is not None and _valid_capture_ymd(y, m, d):
             best = datetime(y, m, d)
 
     if best is not None:
@@ -525,7 +547,7 @@ def datetime_from_directory_path(path: Path) -> datetime | None:
     for i in range(len(parts) - 1):
         y = _parse_path_year_component(parts[i])
         m = _parse_path_month_component(parts[i + 1])
-        if y is not None and m is not None and _valid_ymd(y, m, 1):
+        if y is not None and m is not None and _valid_capture_ymd(y, m, 1):
             best = datetime(y, m, 1)
 
     return best
@@ -537,7 +559,7 @@ def datetime_from_album_folder(path: Path) -> datetime | None:
     if not match:
         return None
     y = int(match.group(1))
-    if _valid_ymd(y, 1, 1):
+    if _valid_capture_ymd(y, 1, 1):
         return datetime(y, 1, 1)
     return None
 

@@ -116,7 +116,8 @@ Si ya existe el fichero destino (`.mp4` o `.jpg`), se salta. Copia la fecha de m
 
 - No modifica metadatos EXIF en renombrado; `rename-by-date` y `organize-photos` solo renombran y mueven en disco. `compress-mov` reencodea vídeo con ffmpeg y exporta RAW a JPEG sin copiar EXIF al JPEG (la fecha de fichero sí se conserva).
 - La fecha de vídeo depende de lo que exporte el contenedor; no todos los archivos incluyen fecha de creación.
-- Archivos sin fecha en metadatos, JSON ni nombre quedan sin cambiar.
+- Archivos sin fecha en metadatos, JSON ni nombre quedan sin cambiar (o se usa `--fallback-oldest-date`).
+- Las fechas **anteriores a 1980** o **posteriores a hoy** se descartan (p. ej. `1970` en EXIF o relojes mal configurados).
 
 ## Desarrollo
 
