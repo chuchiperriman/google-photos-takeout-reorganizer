@@ -7,6 +7,7 @@ Scripts en Python para modificar y reorganizar fotos y vídeos exportados con [G
 ## Requisitos
 
 - Python 3.11 o superior
+- [ffmpeg](https://ffmpeg.org/) en el PATH (solo para `compress-mov`)
 
 ## Instalación
 
@@ -78,9 +79,30 @@ organize-photos /ruta/al/takeout -v
 
 No crea carpetas de evento automáticamente.
 
+### `compress-mov`
+
+Recorre de forma **recursiva** un directorio, convierte cada `.MOV` / `.AVI` a `.mp4` (H.264 + AAC) junto al original y deja el fichero de origen intacto salvo que pidas `--delete`.
+
+**Uso:**
+
+```bash
+compress-mov /ruta/Fotos
+compress-mov /ruta/Fotos --dry-run
+compress-mov /ruta/Fotos --delete --crf 23
+compress-mov /ruta/Fotos -v
+```
+
+- `--dry-run`: muestra qué se convertiría sin tocar ficheros.
+- `--delete`: borra el `.MOV` o `.AVI` original solo si ffmpeg termina bien.
+- `--crf`: calidad x264 (18 más calidad/peso, 28 más pequeño; por defecto `23`).
+- `--preset`: velocidad/compresión x264 (`ultrafast`…`veryslow`; por defecto `medium`).
+- `-v` / `--verbose`: más detalle en el log.
+
+Si ya existe un `.mp4` con el mismo nombre, se salta ese vídeo. Copia metadatos del contenedor y la fecha de modificación del fichero. No forma parte de `organize-photos`: conviene usarlo sobre la fototeca cuando quieras reducir peso.
+
 ## Limitaciones
 
-- No modifica metadatos EXIF; solo renombra y mueve en disco.
+- No modifica metadatos EXIF; `rename-by-date` y `organize-photos` solo renombran y mueven en disco. `compress-mov` sí reencodea vídeo con ffmpeg.
 - La fecha de vídeo depende de lo que exporte el contenedor; no todos los archivos incluyen fecha de creación.
 - Archivos sin fecha en metadatos, JSON ni nombre quedan sin cambiar.
 
@@ -105,4 +127,11 @@ El paquete vive en `src/takeout_reorganizer/`.
    rename-by-date ~/Descargas/takeout-...
    ```
 
-4. Copiar `Fotos/` al disco de backup.
+4. (Opcional) Comprimir `.MOV` y `.AVI` a `.mp4` en la fototeca:
+
+   ```bash
+   compress-mov /ruta/Fotos --dry-run
+   compress-mov /ruta/Fotos
+   ```
+
+5. Copiar `Fotos/` al disco de backup.
