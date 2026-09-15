@@ -112,6 +112,31 @@ compress-mov /ruta/Fotos -v
 
 Si ya existe el fichero destino (`.mp4` o `.jpg`), se salta. Copia la fecha de modificación del fichero. No forma parte de `organize-photos`: conviene usarlo sobre la fototeca cuando quieras reducir peso o generar JPEG desde RAW.
 
+### `find-duplicates`
+
+Recorre de forma **recursiva** un directorio y busca **duplicados inequívocos** (mismo contenido byte a byte) comparando **SHA-256**. Solo considera duplicados ficheros que están **en la misma carpeta** (mismo directorio padre): en cada carpeta compara únicamente los archivos de ese nivel, sin mezclar carpetas distintas.
+
+Para acelerar el análisis, primero agrupa por tamaño y solo hashea ficheros con el mismo tamaño.
+
+**Uso:**
+
+```bash
+find-duplicates /ruta/Fotos
+find-duplicates /ruta/Fotos --delete --dry-run
+find-duplicates /ruta/Fotos --delete
+find-duplicates /ruta/Fotos -v
+```
+
+- `--delete`: borra las copias sobrantes de cada grupo. **Conserva** un fichero por grupo: el de **fecha de modificación (`mtime`) más antigua**; si empatan, el de nombre alfabéticamente menor.
+- `--dry-run`: con `--delete`, muestra qué se borraría sin eliminar ficheros (recomendable antes del borrado real).
+- `-v` / `--verbose`: más detalle en el log.
+
+La salida lista cada grupo con carpeta, hash, tamaño y nombres de fichero. Con `--delete` marca `(conservar)` y `(borrar)`.
+
+**Códigos de salida:** `0` si no hay duplicados o se borraron con éxito; `1` si hay duplicados y no se eliminaron (solo listado o `--dry-run`); `2` si hubo errores de lectura o borrado.
+
+Aplica a **cualquier tipo de fichero** en la carpeta, no solo fotos o vídeos. No forma parte de `organize-photos`; útil para limpiar copias tras un volcado o antes de copiar la fototeca al backup.
+
 ## Limitaciones
 
 - No modifica metadatos EXIF en renombrado; `rename-by-date` y `organize-photos` solo renombran y mueven en disco. `compress-mov` reencodea vídeo con ffmpeg y exporta RAW a JPEG sin copiar EXIF al JPEG (la fecha de fichero sí se conserva).
@@ -147,4 +172,11 @@ El paquete vive en `src/takeout_reorganizer/`.
    compress-mov /ruta/Fotos
    ```
 
-5. Copiar `Fotos/` al disco de backup.
+5. (Opcional) Detectar y borrar duplicados en la misma carpeta:
+
+   ```bash
+   find-duplicates /ruta/Fotos --delete --dry-run
+   find-duplicates /ruta/Fotos --delete
+   ```
+
+6. Copiar `Fotos/` al disco de backup.
