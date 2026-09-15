@@ -93,7 +93,7 @@ compress-mov /ruta/Fotos -v
 ```
 
 - `--dry-run`: muestra qué se convertiría sin tocar ficheros.
-- `--delete`: borra el `.MOV` o `.AVI` original solo si ffmpeg termina bien.
+- `--delete`: borra el `.MOV` o `.AVI` original solo si ffmpeg termina sin errores (ni código de salida ni mensajes de decodificación). Si hay avisos rojos de ffmpeg, se deja el original y el `.mp4`.
 - `--crf`: calidad x264 (18 más calidad/peso, 28 más pequeño; por defecto `23`).
 - `--preset`: velocidad/compresión x264 (`ultrafast`…`veryslow`; por defecto `medium`).
 - `-v` / `--verbose`: más detalle en el log.

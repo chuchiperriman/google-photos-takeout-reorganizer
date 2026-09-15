@@ -45,6 +45,18 @@ def copy_file_times(src: Path, dest: Path) -> None:
     os.utime(dest, (src_stat.st_atime, src_stat.st_mtime))
 
 
+def ffmpeg_had_errors(stderr: str) -> bool:
+    """True si ffmpeg escribió algo que no sea la línea de progreso (-stats)."""
+    for raw in stderr.replace("\r", "\n").split("\n"):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("frame=") or line.startswith("size="):
+            continue
+        return True
+    return False
+
+
 def compress_one(
     src: Path,
     dest: Path,
@@ -52,7 +64,7 @@ def compress_one(
     crf: int,
     preset: str,
     audio_bitrate: str,
-) -> None:
+) -> str:
     cmd = [
         "ffmpeg",
         "-hide_banner",
@@ -83,7 +95,27 @@ def compress_one(
         "+faststart",
         str(dest),
     ]
-    subprocess.run(cmd, check=True)
+    process = subprocess.Popen(
+        cmd,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert process.stderr is not None
+    chunks: list[str] = []
+    while True:
+        chunk = process.stderr.read(1024)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        sys.stderr.write(chunk)
+        sys.stderr.flush()
+    returncode = process.wait()
+    stderr = "".join(chunks)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(returncode, cmd, stderr=stderr)
+    return stderr
 
 
 def run(
@@ -122,8 +154,9 @@ def run(
                 logger.info("  se eliminaría el original: %s", src)
             continue
 
+        stderr = ""
         try:
-            compress_one(
+            stderr = compress_one(
                 src,
                 dest,
                 crf=crf,
@@ -137,12 +170,30 @@ def run(
             dest.unlink(missing_ok=True)
             continue
 
+        if not dest.is_file() or dest.stat().st_size == 0:
+            dest.unlink(missing_ok=True)
+            stats.errors += 1
+            stats.error_messages.append(f"{src}: ffmpeg no generó un mp4 válido")
+            logger.error("Error al comprimir %s: ffmpeg no generó un mp4 válido", src)
+            continue
+
         try:
             copy_file_times(src, dest)
         except OSError as e:
             logger.warning("No se pudo copiar la fecha de %s: %s", src, e)
 
         stats.converted += 1
+        if ffmpeg_had_errors(stderr):
+            stats.errors += 1
+            stats.error_messages.append(
+                f"{src}: ffmpeg reportó errores de decodificación; se conserva el original"
+            )
+            logger.error(
+                "ffmpeg reportó errores; se conserva el original: %s",
+                src,
+            )
+            continue
+
         if delete_originals:
             try:
                 src.unlink()
@@ -187,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--delete",
         action="store_true",
-        help="Borrar el original (.MOV / .AVI) tras una conversión correcta",
+        help="Borrar el original (.MOV / .AVI) solo si la conversión termina sin errores",
     )
     parser.add_argument(
         "--crf",

@@ -16,3 +16,15 @@ La estructura de directorios para las fotos es la que se describe en
 
 * Cuando tengamos todos los ficheros organizados por año bien los copiamos en el SSD en la carpeta Fotos
 
+# Copias de seguridad
+
+Mantener varias copias de seguridad:
+
+* En el PC principal
+* En el HDD externo gris
+* En el SSD externo PNY
+
+Para sincronizarlos, podemos meter las fotos nuevas en el PC y luego lanzar nu rsync para sincronizar el PC con los discos externos
+
+    TODO: Pendientes de crear un script de sincronización
+
