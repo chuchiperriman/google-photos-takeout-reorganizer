@@ -46,6 +46,8 @@ VIDEO_EXTENSIONS = {
     ".3gp",
     ".avi",
     ".mkv",
+    ".mpg",
+    ".mpeg",
     ".mts",
     ".m2ts",
     ".mp",  # Motion Photo (vídeo asociado en Google Pixel / Takeout)

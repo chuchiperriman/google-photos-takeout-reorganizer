@@ -54,7 +54,7 @@ rename-by-date /ruta/al/takeout -v
 - Los nombres antiguos `yyyy-mm-dd-...` se migran al formato nuevo usando metadatos.
 - Al renombrar, se limpian del nombre original fechas y horas redundantes.
 - Si el nombre destino ya existe, se añade `-2`, `-3`, etc.
-- Extensiones tratadas: imágenes (`jpg`, `jpeg`, `png`, `heic`, `webp`, `gif`, `tif`, `tiff`, RAW `cr2`, `cr3`, `nef`, `arw`, `dng`, …), vídeo (`mp4`, `mov`, `m4v`, `mts`, `m2ts`, `3gp`, `avi`, `mkv`, `mp` Motion Photo de Pixel).
+- Extensiones tratadas: imágenes (`jpg`, `jpeg`, `png`, `heic`, `webp`, `gif`, `tif`, `tiff`, RAW `cr2`, `cr3`, `nef`, `arw`, `dng`, …), vídeo (`mp4`, `mov`, `m4v`, `mpg`, `mpeg`, `mts`, `m2ts`, `3gp`, `avi`, `mkv`, `mp` Motion Photo de Pixel).
 
 ### `organize-photos`
 
