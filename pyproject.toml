@@ -8,6 +8,8 @@ dependencies = [
     "Pillow>=10.0.0",
     "pillow-heif>=0.16.0",
     "mutagen>=1.47.0",
+    "rawpy>=0.19.0",
+    "numpy>=1.26.0",
 ]
 
 [project.scripts]

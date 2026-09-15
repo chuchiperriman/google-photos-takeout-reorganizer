@@ -39,6 +39,19 @@ IMAGE_EXTENSIONS = {
     ".pef",
     ".x3f",
 }
+RAW_EXTENSIONS = {
+    ".cr2",
+    ".cr3",
+    ".nef",
+    ".nrw",
+    ".arw",
+    ".dng",
+    ".orf",
+    ".rw2",
+    ".raf",
+    ".pef",
+    ".x3f",
+}
 VIDEO_EXTENSIONS = {
     ".mp4",
     ".mov",

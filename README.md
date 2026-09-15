@@ -7,7 +7,8 @@ Scripts en Python para modificar y reorganizar fotos y vídeos exportados con [G
 ## Requisitos
 
 - Python 3.11 o superior
-- [ffmpeg](https://ffmpeg.org/) en el PATH (solo para `compress-mov`)
+- [ffmpeg](https://ffmpeg.org/) en el PATH (vídeos en `compress-mov`)
+- [LibRaw](https://www.libraw.org/) en el sistema para exportar RAW con `--raw-to-jpeg` (p. ej. en Debian/Ubuntu: `libraw-dev`)
 
 ## Instalación
 
@@ -81,7 +82,12 @@ No crea carpetas de evento automáticamente.
 
 ### `compress-mov`
 
-Recorre de forma **recursiva** un directorio, convierte cada `.MOV` / `.AVI` a `.mp4` (H.264 + AAC) junto al original y deja el fichero de origen intacto salvo que pidas `--delete`.
+Recorre de forma **recursiva** un directorio:
+
+- Por defecto convierte cada `.MOV` / `.AVI` a `.mp4` (H.264 + AAC) junto al original.
+- Con `--raw-to-jpeg` exporta RAW (`.ARW`, `.CR2`, `.NEF`, `.DNG`, …; misma lista que en `rename-by-date`) a `.jpg` con balance de blancos de cámara.
+
+Deja el fichero de origen intacto salvo que pidas `--delete`.
 
 **Uso:**
 
@@ -89,20 +95,25 @@ Recorre de forma **recursiva** un directorio, convierte cada `.MOV` / `.AVI` a `
 compress-mov /ruta/Fotos
 compress-mov /ruta/Fotos --dry-run
 compress-mov /ruta/Fotos --delete --crf 23
+compress-mov /ruta/Fotos --raw-to-jpeg --dry-run
+compress-mov /ruta/Fotos --raw-to-jpeg --skip-video
 compress-mov /ruta/Fotos -v
 ```
 
 - `--dry-run`: muestra qué se convertiría sin tocar ficheros.
-- `--delete`: borra el `.MOV` o `.AVI` original solo si ffmpeg termina sin errores (ni código de salida ni mensajes de decodificación). Si hay avisos rojos de ffmpeg, se deja el original y el `.mp4`.
+- `--delete`: borra el original solo si la conversión termina sin errores. En vídeo, si ffmpeg muestra errores de decodificación, se conserva el `.MOV`/`.AVI` y el `.mp4`.
+- `--raw-to-jpeg`: exporta RAW a `.jpg` (salta si ya hay `.jpg`/`.jpeg` con el mismo nombre).
+- `--skip-video`: no comprime vídeos (solo tiene sentido junto a `--raw-to-jpeg`).
 - `--crf`: calidad x264 (18 más calidad/peso, 28 más pequeño; por defecto `23`).
 - `--preset`: velocidad/compresión x264 (`ultrafast`…`veryslow`; por defecto `medium`).
+- `--jpeg-quality`: calidad al exportar RAW (1–100; por defecto `92`).
 - `-v` / `--verbose`: más detalle en el log.
 
-Si ya existe un `.mp4` con el mismo nombre, se salta ese vídeo. Copia metadatos del contenedor y la fecha de modificación del fichero. No forma parte de `organize-photos`: conviene usarlo sobre la fototeca cuando quieras reducir peso.
+Si ya existe el fichero destino (`.mp4` o `.jpg`), se salta. Copia la fecha de modificación del fichero. No forma parte de `organize-photos`: conviene usarlo sobre la fototeca cuando quieras reducir peso o generar JPEG desde RAW.
 
 ## Limitaciones
 
-- No modifica metadatos EXIF; `rename-by-date` y `organize-photos` solo renombran y mueven en disco. `compress-mov` sí reencodea vídeo con ffmpeg.
+- No modifica metadatos EXIF en renombrado; `rename-by-date` y `organize-photos` solo renombran y mueven en disco. `compress-mov` reencodea vídeo con ffmpeg y exporta RAW a JPEG sin copiar EXIF al JPEG (la fecha de fichero sí se conserva).
 - La fecha de vídeo depende de lo que exporte el contenedor; no todos los archivos incluyen fecha de creación.
 - Archivos sin fecha en metadatos, JSON ni nombre quedan sin cambiar.
 
