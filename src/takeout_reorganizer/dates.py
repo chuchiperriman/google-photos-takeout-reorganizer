@@ -24,6 +24,7 @@ IMAGE_EXTENSIONS = {
     ".heic",
     ".webp",
     ".gif",
+    ".bmp",
     ".tif",
     ".tiff",
     # RAW (pares con JPG en la misma carpeta según ORGANIZACION_FOTOS.md)
