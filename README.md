@@ -179,9 +179,10 @@ El paquete vive en `src/takeout_reorganizer/`.
    find-duplicates /ruta/Fotos --delete
    ```
 
-6. Copiar solo lo nuevo de la fototeca al disco externo **DatosLinux** (montado por etiqueta; destino `Fotos/`). No borra ni sobrescribe ficheros existentes en el disco:
+6. Copiar solo lo nuevo de la fototeca a los discos de backup montados (**DatosLinux**, **PNY ELITE P**; destino `Fotos/` en cada volumen, detectados por etiqueta). No borra ni sobrescribe ficheros existentes; omite discos no conectados:
 
    ```bash
-   ./scripts/sync-fotos-datoslinux.sh --dry-run
-   ./scripts/sync-fotos-datoslinux.sh
+   ./scripts/sync-fotos-backup.sh --dry-run
+   ./scripts/sync-fotos-backup.sh
+   ./scripts/sync-fotos-backup.sh --only DatosLinux
    ```

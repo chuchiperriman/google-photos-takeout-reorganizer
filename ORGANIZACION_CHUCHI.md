@@ -24,10 +24,15 @@ Mantener varias copias de seguridad:
 * En el HDD externo gris
 * En el SSD externo PNY
 
-Para sincronizarlos, organizamos las fotos nuevas en el PC (`~/Fotos`) y luego copiamos solo lo que falta en el disco externo **DatosLinux** (sin borrar ni sobrescribir ficheros que ya estén en el disco):
+Para sincronizarlos, organizamos las fotos nuevas en el PC (`~/Fotos`) y luego copiamos solo lo que falta en los discos conectados (**DatosLinux**, **PNY ELITE P**; destino `Fotos/` en cada uno). No se borra ni se sobrescribe nada en el destino; si un disco no está montado, se omite.
 
-      ./scripts/sync-fotos-datoslinux.sh --dry-run
-      ./scripts/sync-fotos-datoslinux.sh
+      ./scripts/sync-fotos-backup.sh --dry-run
+      ./scripts/sync-fotos-backup.sh
+
+Solo un disco concreto:
+
+      ./scripts/sync-fotos-backup.sh --only DatosLinux
+      ./scripts/sync-fotos-backup.sh --only "PNY ELITE P"
 
 
 # Proceso seguido para ordenar fotos anteriores:
