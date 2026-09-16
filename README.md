@@ -85,7 +85,7 @@ No crea carpetas de evento automáticamente.
 
 Recorre de forma **recursiva** un directorio:
 
-- Por defecto convierte cada `.MOV` / `.AVI` a `.mp4` (H.264 + AAC) junto al original.
+- Por defecto convierte cada `.MOV` / `.AVI` / `.MTS` a `.mp4` (H.264 + AAC) junto al original.
 - Con `--raw-to-jpeg` exporta RAW (`.ARW`, `.CR2`, `.NEF`, `.DNG`, …; misma lista que en `rename-by-date`) a `.jpg` con balance de blancos de cámara.
 
 Deja el fichero de origen intacto salvo que pidas `--delete`.
@@ -102,7 +102,7 @@ compress-mov /ruta/Fotos -v
 ```
 
 - `--dry-run`: muestra qué se convertiría sin tocar ficheros.
-- `--delete`: borra el original solo si la conversión termina sin errores. En vídeo, si ffmpeg muestra errores de decodificación, se conserva el `.MOV`/`.AVI` y el `.mp4`.
+- `--delete`: borra el original solo si la conversión termina sin errores. En vídeo, si ffmpeg muestra errores de decodificación, se conserva el original y el `.mp4`.
 - `--raw-to-jpeg`: exporta RAW a `.jpg` (salta si ya hay `.jpg`/`.jpeg` con el mismo nombre).
 - `--skip-video`: no comprime vídeos (solo tiene sentido junto a `--raw-to-jpeg`).
 - `--crf`: calidad x264 (18 más calidad/peso, 28 más pequeño; por defecto `23`).
@@ -165,7 +165,7 @@ El paquete vive en `src/takeout_reorganizer/`.
    rename-by-date ~/Descargas/takeout-...
    ```
 
-4. (Opcional) Comprimir `.MOV` y `.AVI` a `.mp4` en la fototeca:
+4. (Opcional) Comprimir `.MOV`, `.AVI` y `.MTS` a `.mp4` en la fototeca:
 
    ```bash
    compress-mov /ruta/Fotos --dry-run

@@ -18,7 +18,7 @@ from takeout_reorganizer.dates import RAW_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
-SOURCE_EXTENSIONS = {".mov", ".avi"}
+SOURCE_EXTENSIONS = {".mov", ".avi", ".mts"}
 DEFAULT_CRF = 23
 DEFAULT_PRESET = "medium"
 DEFAULT_AUDIO_BITRATE = "128k"
@@ -339,7 +339,7 @@ def print_summary(stats: RunStats, dry_run: bool) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Comprime vídeos .MOV/.AVI a .mp4 (ffmpeg) y, con --raw-to-jpeg, "
+            "Comprime vídeos .MOV/.AVI/.MTS a .mp4 (ffmpeg) y, con --raw-to-jpeg, "
             "exporta RAW (.ARW, .CR2, …) a .jpg (rawpy)."
         ),
     )
