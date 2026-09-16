@@ -24,9 +24,10 @@ Mantener varias copias de seguridad:
 * En el HDD externo gris
 * En el SSD externo PNY
 
-Para sincronizarlos, podemos meter las fotos nuevas en el PC y luego lanzar nu rsync para sincronizar el PC con los discos externos
+Para sincronizarlos, organizamos las fotos nuevas en el PC (`~/Fotos`) y luego copiamos solo lo que falta en el disco externo **DatosLinux** (sin borrar ni sobrescribir ficheros que ya estén en el disco):
 
-    TODO: Pendientes de crear un script de sincronización
+      ./scripts/sync-fotos-datoslinux.sh --dry-run
+      ./scripts/sync-fotos-datoslinux.sh
 
 
 # Proceso seguido para ordenar fotos anteriores:

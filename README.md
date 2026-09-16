@@ -57,7 +57,7 @@ rename-by-date /ruta/al/takeout -v
 - Los nombres antiguos `yyyy-mm-dd-...` se migran al formato nuevo usando metadatos.
 - Al renombrar, se limpian del nombre original fechas y horas redundantes.
 - Si el nombre destino ya existe, se añade `-2`, `-3`, etc.
-- Extensiones tratadas: imágenes (`jpg`, `jpeg`, `png`, `heic`, `webp`, `gif`, `tif`, `tiff`, RAW `cr2`, `cr3`, `nef`, `arw`, `dng`, …), vídeo (`mp4`, `mov`, `m4v`, `mpg`, `mpeg`, `mts`, `m2ts`, `3gp`, `avi`, `mkv`, `mp` Motion Photo de Pixel).
+- Extensiones tratadas: imágenes (`jpg`, `jpeg`, `png`, `heic`, `webp`, `gif`, `bmp`, `tif`, `tiff`, RAW `cr2`, `cr3`, `nef`, `arw`, `dng`, …), vídeo (`mp4`, `mov`, `m4v`, `mpg`, `mpeg`, `mts`, `m2ts`, `3gp`, `avi`, `mkv`, `mp` Motion Photo de Pixel).
 
 ### `organize-photos`
 
@@ -179,4 +179,9 @@ El paquete vive en `src/takeout_reorganizer/`.
    find-duplicates /ruta/Fotos --delete
    ```
 
-6. Copiar `Fotos/` al disco de backup.
+6. Copiar solo lo nuevo de la fototeca al disco externo **DatosLinux** (montado por etiqueta; destino `Fotos/`). No borra ni sobrescribe ficheros existentes en el disco:
+
+   ```bash
+   ./scripts/sync-fotos-datoslinux.sh --dry-run
+   ./scripts/sync-fotos-datoslinux.sh
+   ```
